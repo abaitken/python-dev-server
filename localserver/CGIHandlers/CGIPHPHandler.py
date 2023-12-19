@@ -14,6 +14,9 @@ class CGIPHPHandler(CGIHandler.CGIHandler):
         Logging.Log(Logging.LEVEL_INFO, 'php=' + phppath)
         CGIHandler.CGIHandler.__init__(self, phppath)
     
+    def ConstructCommandLine(self, script, params):
+        return  [self.interpreter, '-d', 'display_errors=1', '-d', 'error_reporting=4', script, params];
+    
     def CanExecute(self, file_extension):
         if file_extension == '.php':
             return True
