@@ -215,6 +215,7 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
         env['PATH_TRANSLATED'] = self.translate_path(uqrest)
         env['SCRIPT_NAME'] = scriptname
         env['QUERY_STRING'] = query
+        env['REQUEST_URI'] = 'http://' + self.server.server_name + ':' + str(self.server.server_port) + scriptname + '?' + query
         env['REMOTE_ADDR'] = self.client_address[0]
         authorization = self.headers.get("authorization")
         if authorization:
@@ -384,6 +385,7 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
             if 'Range' in self.headers:
                 self._do_GET_Range()
                 return
+            
             SimpleHTTPRequestHandler.do_GET(self)
             return
             
