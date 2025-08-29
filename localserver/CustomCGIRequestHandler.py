@@ -315,6 +315,7 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         if not self.command.lower() == "post" and self.cgi_info == None:
             self.send_header('Accept-Ranges', 'bytes')
+        self.send_header('Access-Control-Allow-Origin', '*')
         return SimpleHTTPRequestHandler.end_headers(self)
     
     def do_POST(self):
