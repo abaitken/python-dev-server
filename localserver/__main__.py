@@ -1,11 +1,8 @@
 import os
-from http.server import HTTPServer
-import socketserver
+from http.server import ThreadingHTTPServer
 import threading
 import CGIHandlerFactory, CustomCGIRequestHandler, Logging
 
-class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    pass
 
 if __name__ == '__main__':
     Logging.Level = Logging.LEVEL_INFO
@@ -15,7 +12,7 @@ if __name__ == '__main__':
     Logging.Log(Logging.LEVEL_INFO, 'serverport=' + serverport)
 
     try:
-        httpd = ThreadedHTTPServer((serveraddr, int(serverport)),
+        httpd = ThreadingHTTPServer((serveraddr, int(serverport)),
                                    CustomCGIRequestHandler.CustomCGIRequestHandler)
 
         print(f"Running server. Use [ctrl]-c to terminate.")
@@ -24,4 +21,4 @@ if __name__ == '__main__':
 
     except KeyboardInterrupt:
         print(f"\nReceived keyboard interrupt. Shutting down server.")
-        httpd.socket.close()
+        httpd.server_close()

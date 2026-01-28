@@ -20,25 +20,27 @@ import socket # For gethostbyaddr()
 import socketserver
 import sys
 import time
+import traceback
 
 from http import HTTPStatus
+import Logging
 
-def ltrim(str, c):
-    s = str
+def ltrim(value, c):
+    s = value
     if s is not None and s.startswith(c):
         s = s[len(c):]
     
     return s
 
-def GetHeader(str, header):
-    result = re.search(r'^' + re.escape(header) + r':\s*(.+?)\r?\n', str, re.MULTILINE | re.IGNORECASE)
+def GetHeader(value, header):
+    result = re.search(r'^' + re.escape(header) + r':\s*(.+?)\r?\n', value, re.MULTILINE | re.IGNORECASE)
     if result is None:
         return None
     
     return result.group(1)
 
-def RemoveHeader(str, header):
-    result = re.sub(r'^' + re.escape(header) + r':\s*(.+?)\r?\n', '', str, 0, re.MULTILINE | re.IGNORECASE)    
+def RemoveHeader(value, header):
+    result = re.sub(r'^' + re.escape(header) + r':\s*(.+?)\r?\n', '', value, 0, re.MULTILINE | re.IGNORECASE)    
     return result
 
 def _url_collapse_path(path):
@@ -127,6 +129,7 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
     
     def __init__(self,req,client_addr,server):
         SimpleHTTPRequestHandler.__init__(self,req,client_addr,server)
+        #super(req, client_addr, server)
     
     def serverSideScriptInterpreterSelector(self, script):
         file_name, file_extension = os.path.splitext(script)    
@@ -263,7 +266,15 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
     
     def run_cgi(self, script, params):
     
-        self.prepareEnvironment()        
+        try:
+            self.prepareEnvironment()        
+        except Exception as e:
+            Logging.Log(Logging.LEVEL_ERROR, f"Exception: {type(e)}")
+            Logging.Log(Logging.LEVEL_ERROR, f"Detail: {str(e)}")
+            tb = traceback.format_exc()
+            Logging.Log(Logging.LEVEL_ERROR, tb)
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, 'Internal server error')
+            return None
         
         length = self.headers.get('content-length')
         try:
@@ -279,54 +290,54 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
             if not self.rfile._sock.recv(1):
                 break
             
-        (status, str) = self.serverSideScriptInterpreterSelector(script).Execute(script, params, data)
+        (exitcode, output) = self.serverSideScriptInterpreterSelector(script).Execute(script, params, data)
         
-        status = GetHeader(str, "Status")
+        status = GetHeader(output, "Status")
         if status is not None:
             self.send_response(int(status[:3]))
-            str = RemoveHeader(str, "Status")
+            output = RemoveHeader(output, "Status")
         else:
             self.send_response(HTTPStatus.OK)
         
-        contentType = GetHeader(str, "Content-Type")
+        contentType = GetHeader(output, "Content-Type")
         if contentType is not None:
             self.send_header("Content-type", contentType)
-            str = RemoveHeader(str, "Content-Type")
+            output = RemoveHeader(output, "Content-Type")
         else:
             self.send_header("Content-Type", "text/html")
         
-        expires = GetHeader(str, "Expires")
+        expires = GetHeader(output, "Expires")
         if expires is not None:
             self.send_header("Expires", expires)
-            str = RemoveHeader(str, "Expires")
+            output = RemoveHeader(output, "Expires")
         
-        date = GetHeader(str, "Date")
+        date = GetHeader(output, "Date")
         if date is not None:
             self.send_header("Date", date)
-            str = RemoveHeader(str, "Date")
+            output = RemoveHeader(output, "Date")
         
-        str = RemoveHeader(str, "Content-length")
-        str = str.lstrip()
+        output = RemoveHeader(output, "Content-length")
+        output = output.lstrip()
         
-        self.send_header("Content-length", len(str))
+        self.send_header("Content-length", len(output))
         self.end_headers()
-        self.wfile.write(bytes(str, "utf-8"))
+        self.wfile.write(bytes(output, "utf-8"))
 
     def end_headers(self):
         if not self.command.lower() == "post" and self.cgi_info == None:
             self.send_header('Accept-Ranges', 'bytes')
         self.send_header('Access-Control-Allow-Origin', '*')
-        return SimpleHTTPRequestHandler.end_headers(self)
+        return super().end_headers()
     
     def do_POST(self):
         # If not running a cgi script
         if not self.is_cgi():
-            str = 'POST available to CGI only'
+            output = 'POST available to CGI only'
             self.send_response(HTTPStatus.FORBIDDEN)
             self.send_header("Content-Type", "text/plain")
-            self.send_header("Content-length", len(str))
+            self.send_header("Content-length", len(output))
             self.end_headers()
-            self.wfile.write(bytes(str, 'utf-8'))
+            self.wfile.write(bytes(output, 'utf-8'))
             return
             
         # Perform CGI request
@@ -358,7 +369,7 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
             self.send_error(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE, 'Requested Range Not Satisfiable')
             return None
 
-        self.send_response(206)
+        self.send_response(HTTPStatus.PARTIAL_CONTENT)
         self.send_header('Content-type', ctype)
 
         if last is None or last >= file_len:
@@ -387,9 +398,9 @@ class CustomCGIRequestHandler(SimpleHTTPRequestHandler):
                 self._do_GET_Range()
                 return
             
-            SimpleHTTPRequestHandler.do_GET(self)
+            super().do_GET()
             return
-            
+
         # Perform CGI request
         (scriptPath, params) = self.parse_path(self.path)        
         script = self.translate_path(scriptPath)
